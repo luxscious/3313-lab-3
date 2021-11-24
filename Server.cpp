@@ -12,50 +12,98 @@ using namespace Sync;
 class ServerThread : public Thread
 {
 private:
-    SocketServer& server;
+    SocketServer &server;
+
 public:
-    ServerThread(SocketServer& server)
-    : server(server)
-    {}
+    Event connEvent;
+    Event shutdownEvent;
+    bool *shutdown;
+    ServerThread(SocketServer &server, Event &e, bool *s, Event &e2)
+        : server(server)
+    {
+        connEvent = *new Event(e);
+        shutdown = s;
+        shutdownEvent = *new Event(e2);
+    }
 
     ~ServerThread()
     {
+        terminationEvent.Wait();
         // Cleanup
-	//...
+        //...
     }
 
     virtual long ThreadMain()
     {
+        std::cout << "Thread Created" << std::endl;
         // Wait for a client socket connection
-        Socket* newConnection = new Socket(server.Accept());
+        ByteArray data;
+        std::string inStr;
+        std::string outStr;
+        Socket *newConnection = new Socket(server.Accept());
+        connEvent.Trigger();
+        // A reference to this pointer
+        Socket &socket = *newConnection;
+        FlexWait incomingData(2, &socket, &shutdownEvent);
+        while (!*shutdown)
+        {
+            incomingData.Wait();
+            if (*shutdown)
+            {
+                break;
+            }
+            socket.Read(data);
+            inStr = data.ToString();
+            if (inStr == "done") //Close client terminal
+            {
+                break;
+            }
+            else if (inStr == "Close") //shutdown server
+            {
+                *shutdown = true;
+                shutdownEvent.Trigger(); //trigger this to allow the server to exit
+                break;
+            }
+            outStr = "";
+            for (int i = 0; i < inStr.length(); i++)
+            {
+                outStr += toupper(inStr[i]);
+            }
+            data = *new ByteArray(outStr);
+            socket.Write(data);
+        }
+        //if the code reaches here, shutdown is initiated.
+        socket.Write(*new ByteArray("Close")); //send the shutdown signal
 
-        // A reference to this pointer 
-        Socket& socketReference = *newConnection;
-	//You can use this to read data from socket and write data to socket. You may want to put this read/write somewhere else. You may use ByteArray
-	// Wait for data
-        //socketReference.Read(data);
-        // Send it back
-        //socketReference.Write(data);
-	return 1;
+        return 1;
     }
 };
-
 
 int main(void)
 {
     std::cout << "I am a server." << std::endl;
-	
     // Create our server
-    SocketServer server(3000);    
+    SocketServer server(3000);
+    Event connEvent;
+    Event shutdownEvent;
+    // Need a thread to perform  server operations
+    bool shutdown = false;
+    FlexWait serverWaiter(2, &server, &shutdownEvent);
+    FlexWait eventWaiter(1, &connEvent);
+    while (!shutdown)
+    {
+        serverWaiter.Wait(); //wait until there is an attempt to connect, then..
+        if (!shutdown)
+        {
+            ServerThread *serverThread = new ServerThread(server, connEvent, &shutdown, shutdownEvent);
+        }
+        else
+        {
+            break;
+        }
+        eventWaiter.Wait();
+        connEvent.Reset();
+    }
 
-    // Need a thread to perform server operations
-    ServerThread serverThread(server);
-	
-    // This will wait for input to shutdown the server
-    FlexWait cinWaiter(1, stdin);
-    cinWaiter.Wait();
-
-    // Shut down and clean up the server
-    server.Shutdown();
-
+    server.Shutdown(); // Shut down and clean up the server
 }
