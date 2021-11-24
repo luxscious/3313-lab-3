@@ -24,21 +24,24 @@ int main(void)
 			getline(std::cin, input);
 
 			data = *new ByteArray(input);
-			if (input == "done")
+			if (input == "done" || input == "close")
 			{
 				socket.Write(data);
 				std::cout << "Client closed." << std::endl;
 				break;
 			}
-			socket.Write(data);
-			socket.Read(data);
-			if (data.ToString() == "close" || data.ToString() == "") //if Close recieved or an empty string, server is closed
+			else
 			{
-				std::cout << "Server Closed... Terminating Client" << std::endl;
-				break; //shutdown if sent Close
-			}
+				socket.Write(data);
+				socket.Read(data);
+				if (data.ToString() == "close" || data.ToString() == "") //if Close recieved or an empty string, server is closed
+				{
+					std::cout << "Server Closed... Terminating Client" << std::endl;
+					break; //shutdown if sent Close
+				}
 
-			std::cout << data.ToString() << std::endl;
+				std::cout << data.ToString() << std::endl;
+			}
 		}
 		socket.Close();
 	}
