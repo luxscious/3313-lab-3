@@ -43,8 +43,8 @@ public:
         Socket *newConnection = new Socket(server.Accept());
         connEvent.Trigger();
         // A reference to this pointer
-        Socket &socket = *newConnection;
-        FlexWait incomingData(2, &socket, &shutdownEvent);
+        Socket &socketReference = *newConnection;
+        FlexWait incomingData(2, &socketReference, &shutdownEvent);
         while (!*shutdown)
         {
             incomingData.Wait();
@@ -52,14 +52,18 @@ public:
             {
                 break;
             }
-            socket.Read(data);
+            socketReference.Read(data);
             inStr = data.ToString();
             if (inStr == "done") //Close client terminal
             {
+                std::string msg = "Thread terminated";
+                std::cout << msg << std::endl;
                 break;
             }
-            else if (inStr == "Close") //shutdown server
+            else if (inStr == "close") //shutdown server
             {
+                std::string msg = "Server Shutting Down.";
+                std::cout << msg << std::endl;
                 *shutdown = true;
                 shutdownEvent.Trigger(); //trigger this to allow the server to exit
                 break;
@@ -70,10 +74,10 @@ public:
                 outStr += toupper(inStr[i]);
             }
             data = *new ByteArray(outStr);
-            socket.Write(data);
+            socketReference.Write(data);
         }
         //if the code reaches here, shutdown is initiated.
-        socket.Write(*new ByteArray("Close")); //send the shutdown signal
+        socketReference.Write(*new ByteArray("Close")); //send the shutdown signal
 
         return 1;
     }
@@ -105,5 +109,9 @@ int main(void)
         connEvent.Reset();
     }
 
-    server.Shutdown(); // Shut down and clean up the server
+    /*// This will wait for input to shutdown the server
+    FlexWait cinWaiter(1, stdin);
+    cinWaiter.Wait();*/
+    server.Shutdown();
+    // Shut down and clean up the server
 }

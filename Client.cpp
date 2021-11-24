@@ -20,17 +20,24 @@ int main(void)
 		socket.Open(); //open the socket
 		while (true)
 		{
-			std::cout << "Enter a string, or Exit to shutdown, or Close to shutdown the server." << std::endl;
+			std::cout << "Enter a string, or done to terminate the client, or close to shutdown the server." << std::endl;
 			getline(std::cin, input);
 
-			data = ByteArray(input);
-			socket.Write(data);
-
-			socket.Read(data);
-			if (data.ToString() == "Close" || data.ToString() == "") //if Close recieved or an empty string, server is closed
+			data = *new ByteArray(input);
+			if (input == "done")
 			{
+				socket.Write(data);
+				std::cout << "Client closed." << std::endl;
+				break;
+			}
+			socket.Write(data);
+			socket.Read(data);
+			if (data.ToString() == "close" || data.ToString() == "") //if Close recieved or an empty string, server is closed
+			{
+				std::cout << "Server Closed... Terminating Client" << std::endl;
 				break; //shutdown if sent Close
 			}
+
 			std::cout << data.ToString() << std::endl;
 		}
 		socket.Close();
